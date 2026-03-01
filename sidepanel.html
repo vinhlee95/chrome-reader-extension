@@ -13,9 +13,12 @@
     <header class="header">
       <h1 id="page-title">Chrome Reader</h1>
       <div style="display:flex;align-items:center;gap:4px;">
-        <button id="tone-toggle" class="mode-toggle active" title="Toggle ChillLax mode" aria-pressed="true">
-          ChillLax
-        </button>
+        <div class="tone-select-wrapper">
+          <select id="tone-select" class="tone-select" title="Tone mode">
+            <option value="chill">Chill</option>
+            <option value="normal">Normal</option>
+          </select>
+        </div>
         <button id="theme-toggle" class="icon-btn" title="Toggle theme">
           <svg id="theme-icon-system" width="20" height="20" viewBox="0 0 20 20" fill="none">
             <rect x="3" y="4" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/>

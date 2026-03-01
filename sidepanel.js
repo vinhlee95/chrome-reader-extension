@@ -12,7 +12,7 @@ const settingsBtn = document.getElementById('settings-btn');
 const bannerSettingsBtn = document.getElementById('banner-settings-btn');
 const apiKeyBanner = document.getElementById('api-key-banner');
 const pageTitleEl = document.getElementById('page-title');
-const toneToggle = document.getElementById('tone-toggle');
+const toneSelect = document.getElementById('tone-select');
 
 // Max conversation messages to keep (rolling window)
 const MAX_HISTORY = 20;
@@ -26,7 +26,7 @@ const themeIcons = {
 };
 const themeCycle = ['system', 'light', 'dark'];
 let currentTheme = 'system';
-let isChillLaxMode = true;
+let toneMode = 'chill';
 let lastUsedModel = '';
 
 function createDefaultTabState() {
@@ -71,18 +71,15 @@ function cycleTheme() {
   chrome.storage.local.set({ theme_preference: next });
 }
 
-function applyToneMode(enabled) {
-  isChillLaxMode = enabled;
-  toneToggle.classList.toggle('active', enabled);
-  toneToggle.textContent = enabled ? 'ChillLax' : 'Default';
-  toneToggle.title = enabled ? 'ChillLax mode is on' : 'Default mode is on';
-  toneToggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+function applyToneMode(mode) {
+  toneMode = mode;
+  toneSelect.value = mode;
 }
 
-function toggleToneMode() {
-  const next = !isChillLaxMode;
-  applyToneMode(next);
-  chrome.storage.local.set({ chilllax_mode: next });
+function handleToneChange() {
+  const mode = toneSelect.value;
+  applyToneMode(mode);
+  chrome.storage.local.set({ tone_mode: mode });
 }
 
 // Init
@@ -90,9 +87,14 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
   // Load and apply theme
-  const { theme_preference, chilllax_mode } = await chrome.storage.local.get(['theme_preference', 'chilllax_mode']);
+  const { theme_preference, tone_mode, chilllax_mode } = await chrome.storage.local.get(['theme_preference', 'tone_mode', 'chilllax_mode']);
   applyTheme(theme_preference || 'system');
-  applyToneMode(chilllax_mode !== false);
+  // Migrate old chilllax_mode to new tone_mode
+  if (tone_mode) {
+    applyToneMode(tone_mode);
+  } else {
+    applyToneMode(chilllax_mode !== false ? 'chill' : 'normal');
+  }
 
   setupEventListeners();
 
@@ -130,7 +132,7 @@ function setupEventListeners() {
 
   // Theme toggle
   themeToggle.addEventListener('click', cycleTheme);
-  toneToggle.addEventListener('click', toggleToneMode);
+  toneSelect.addEventListener('change', handleToneChange);
 
   // Settings buttons
   settingsBtn.addEventListener('click', openSettings);
@@ -255,7 +257,7 @@ async function fetchPageContent(tabId = activeTabId) {
 
 function buildSystemPrompt(tabId) {
   const state = getTabState(tabId);
-  const toneInstructions = isChillLaxMode
+  const toneInstructions = toneMode === 'chill'
     ? `Tone instructions:
 - Respond with a casual Gen Z vibe.
 - Use emojis frequently to keep the vibe playful and expressive.
