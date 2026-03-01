@@ -79,7 +79,7 @@ body {
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.5;
   display: flex;
   justify-content: center;
