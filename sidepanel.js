@@ -13,6 +13,7 @@ const bannerSettingsBtn = document.getElementById('banner-settings-btn');
 const apiKeyBanner = document.getElementById('api-key-banner');
 const pageTitleEl = document.getElementById('page-title');
 const toneSelect = document.getElementById('tone-select');
+const langSelect = document.getElementById('lang-select');
 
 // Max conversation messages to keep (rolling window)
 const MAX_HISTORY = 20;
@@ -27,6 +28,7 @@ const themeIcons = {
 const themeCycle = ['system', 'light', 'dark'];
 let currentTheme = 'system';
 let toneMode = 'chill';
+let langMode = 'default';
 let lastUsedModel = '';
 
 function createDefaultTabState() {
@@ -82,12 +84,23 @@ function handleToneChange() {
   chrome.storage.local.set({ tone_mode: mode });
 }
 
+function applyLangMode(mode) {
+  langMode = mode;
+  langSelect.value = mode;
+}
+
+function handleLangChange() {
+  const mode = langSelect.value;
+  applyLangMode(mode);
+  chrome.storage.local.set({ lang_mode: mode });
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
   // Load and apply theme
-  const { theme_preference, tone_mode, chilllax_mode } = await chrome.storage.local.get(['theme_preference', 'tone_mode', 'chilllax_mode']);
+  const { theme_preference, tone_mode, chilllax_mode, lang_mode } = await chrome.storage.local.get(['theme_preference', 'tone_mode', 'chilllax_mode', 'lang_mode']);
   applyTheme(theme_preference || 'system');
   // Migrate old chilllax_mode to new tone_mode
   if (tone_mode) {
@@ -95,6 +108,7 @@ async function init() {
   } else {
     applyToneMode(chilllax_mode !== false ? 'chill' : 'normal');
   }
+  applyLangMode(lang_mode || 'default');
 
   setupEventListeners();
 
@@ -133,6 +147,7 @@ function setupEventListeners() {
   // Theme toggle
   themeToggle.addEventListener('click', cycleTheme);
   toneSelect.addEventListener('change', handleToneChange);
+  langSelect.addEventListener('change', handleLangChange);
 
   // Settings buttons
   settingsBtn.addEventListener('click', openSettings);
@@ -267,10 +282,16 @@ function buildSystemPrompt(tabId) {
 - Use a neutral, professional tone.
 - Do not force slang or any specific style.`;
 
+  const langInstructions = langMode === 'en'
+    ? `Language: Always respond in English, regardless of the webpage's language.`
+    : `Language: You MUST respond in the same language as the webpage content, even if the user's question is in a different language. Detect the language of the page content and always use that language in your response. For example, if the page is in Vietnamese, respond in Vietnamese even if the user asks in English.`;
+
   if (!state.pageContent) {
     return `You are a helpful assistant. The user wanted to ask about a webpage, but the content could not be loaded.
 
-${toneInstructions}`;
+${toneInstructions}
+
+${langInstructions}`;
   }
 
   return `You are a helpful assistant that answers questions about web pages. You have access to the following page content:
@@ -288,12 +309,17 @@ Instructions:
 - When you use general knowledge, briefly note that the detail was not found in the page content.
 - Use markdown formatting for readability.
 
-${toneInstructions}`;
+${toneInstructions}
+
+${langInstructions}`;
 }
+
+let isSending = false;
 
 async function handleSend() {
   const text = userInput.value.trim();
-  if (!text || isStreaming || typeof activeTabId !== 'number') return;
+  if (!text || isStreaming || isSending || typeof activeTabId !== 'number') return;
+  isSending = true;
 
   const state = getTabState(activeTabId);
 
@@ -302,6 +328,7 @@ async function handleSend() {
 
   if (!openrouter_api_key) {
     apiKeyBanner.classList.remove('hidden');
+    isSending = false;
     return;
   }
 
@@ -345,6 +372,7 @@ async function handleSend() {
   // Stream response
   const model = openrouter_model || 'google/gemini-2.5-flash';
   lastUsedModel = model;
+  isSending = false;
   await streamResponse(openrouter_api_key, model, activeTabId);
 }
 
@@ -630,11 +658,6 @@ async function streamResponse(apiKey, model, tabId) {
     isStreaming = false;
     streamingTabId = null;
     sendBtn.disabled = false;
-
-    if (typeof activeTabId === 'number') {
-      renderTabState(activeTabId);
-    }
-
     userInput.focus();
   }
 }
