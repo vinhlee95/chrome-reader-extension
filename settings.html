@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chrome Reader — Settings</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Chrome Reader Settings</h1>
+
+    <div class="field">
+      <label for="api-key">OpenRouter API Key</label>
+      <p class="hint">Get your key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></p>
+      <div class="input-row">
+        <input type="password" id="api-key" placeholder="sk-or-v1-..." autocomplete="off" spellcheck="false">
+        <button id="toggle-visibility" class="icon-btn" title="Toggle visibility">
+          <svg id="eye-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 4C4.5 4 1.5 10 1.5 10s3 6 8.5 6 8.5-6 8.5-6-3-6-8.5-6z" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        </button>
+      </div>
+      <p id="key-status" class="status hidden"></p>
+    </div>
+
+    <div class="field">
+      <label for="model-select">Model</label>
+      <p class="hint">Choose the AI model for responses</p>
+      <select id="model-select">
+        <option value="anthropic/claude-sonnet-4">Claude Sonnet 4 (recommended)</option>
+        <option value="anthropic/claude-haiku-4">Claude Haiku 4</option>
+        <option value="openai/gpt-4o">GPT-4o</option>
+        <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
+        <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash</option>
+        <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
+      </select>
+    </div>
+
+    <button id="save-btn" class="primary-btn">Save Settings</button>
+    <p id="save-status" class="status hidden"></p>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>
