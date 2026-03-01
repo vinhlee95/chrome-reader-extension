@@ -1,3 +1,11 @@
+// Apply theme
+chrome.storage.local.get(['theme_preference'], (result) => {
+  const theme = result.theme_preference || 'system';
+  if (theme !== 'system') {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+});
+
 const apiKeyInput = document.getElementById('api-key');
 const toggleBtn = document.getElementById('toggle-visibility');
 const modelSelect = document.getElementById('model-select');

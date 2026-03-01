@@ -17,10 +17,42 @@ const pageTitleEl = document.getElementById('page-title');
 // Max conversation messages to keep (rolling window)
 const MAX_HISTORY = 20;
 
+// Theme
+const themeToggle = document.getElementById('theme-toggle');
+const themeIcons = {
+  system: document.getElementById('theme-icon-system'),
+  light: document.getElementById('theme-icon-light'),
+  dark: document.getElementById('theme-icon-dark'),
+};
+const themeCycle = ['system', 'light', 'dark'];
+let currentTheme = 'system';
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  if (theme === 'system') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+  Object.values(themeIcons).forEach(icon => icon.classList.add('hidden'));
+  themeIcons[theme].classList.remove('hidden');
+}
+
+function cycleTheme() {
+  const nextIndex = (themeCycle.indexOf(currentTheme) + 1) % themeCycle.length;
+  const next = themeCycle[nextIndex];
+  applyTheme(next);
+  chrome.storage.local.set({ theme_preference: next });
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
+  // Load and apply theme
+  const { theme_preference } = await chrome.storage.local.get(['theme_preference']);
+  applyTheme(theme_preference || 'system');
+
   checkApiKey();
   await fetchPageContent();
   setupEventListeners();
@@ -41,6 +73,9 @@ function setupEventListeners() {
     userInput.style.height = 'auto';
     userInput.style.height = Math.min(userInput.scrollHeight, 130) + 'px';
   });
+
+  // Theme toggle
+  themeToggle.addEventListener('click', cycleTheme);
 
   // Settings buttons
   settingsBtn.addEventListener('click', openSettings);
