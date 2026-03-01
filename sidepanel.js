@@ -343,7 +343,7 @@ async function handleSend() {
   userInput.style.height = 'auto';
 
   // Stream response
-  const model = openrouter_model || 'anthropic/claude-sonnet-4';
+  const model = openrouter_model || 'google/gemini-2.5-flash';
   lastUsedModel = model;
   await streamResponse(openrouter_api_key, model, activeTabId);
 }
