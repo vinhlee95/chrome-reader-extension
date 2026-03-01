@@ -279,9 +279,10 @@ ${toneInstructions}`;
 ${state.pageContent.content}
 
 Instructions:
-- Answer the user's questions based on the page content above.
+- Prioritize answering from the page content above when relevant.
 - Be concise and helpful.
-- If the answer isn't in the page content, say so.
+- If the page content does not contain key information needed to answer, use your general knowledge to provide the best answer.
+- When you use general knowledge, briefly note that the detail was not found in the page content.
 - Use markdown formatting for readability.
 
 ${toneInstructions}`;
