@@ -27,6 +27,7 @@ const themeIcons = {
 const themeCycle = ['system', 'light', 'dark'];
 let currentTheme = 'system';
 let isChillLaxMode = true;
+let lastUsedModel = '';
 
 function createDefaultTabState() {
   return {
@@ -341,22 +342,87 @@ async function handleSend() {
 
   // Stream response
   const model = openrouter_model || 'anthropic/claude-sonnet-4';
+  lastUsedModel = model;
   await streamResponse(openrouter_api_key, model, activeTabId);
 }
 
-function addMessage(role, content) {
-  const div = document.createElement('div');
-  div.className = `message ${role}`;
+function addMessage(role, content, { showActions = true } = {}) {
+  const wrapper = document.createElement('div');
+  wrapper.className = `message-wrapper ${role}`;
 
-  if (role === 'assistant') {
-    div.innerHTML = renderMarkdown(content);
-  } else {
-    div.textContent = content;
+  if (role === 'user') {
+    const row = document.createElement('div');
+    row.className = 'user-message-row';
+
+    const actions = document.createElement('div');
+    actions.className = 'user-message-actions';
+    actions.innerHTML = `
+      <button title="Copy" data-action="copy-user">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+      </button>
+    `;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'message-content';
+    bubble.textContent = content;
+
+    row.appendChild(actions);
+    row.appendChild(bubble);
+    wrapper.appendChild(row);
+
+    // Copy user message
+    actions.querySelector('[data-action="copy-user"]').addEventListener('click', () => {
+      navigator.clipboard.writeText(content);
+    });
+
+  } else if (role === 'assistant') {
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.innerHTML = renderMarkdown(content);
+    wrapper.appendChild(contentDiv);
+
+    if (showActions && content) {
+      wrapper.appendChild(createAssistantActions(content, lastUsedModel));
+    }
   }
 
-  messagesEl.appendChild(div);
+  messagesEl.appendChild(wrapper);
   scrollToBottom();
-  return div;
+  return wrapper;
+}
+
+function formatModelName(model) {
+  // "anthropic/claude-sonnet-4" → "Claude Sonnet 4"
+  const name = model.includes('/') ? model.split('/').pop() : model;
+  return name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function createAssistantActions(rawContent, modelName) {
+  const actions = document.createElement('div');
+  actions.className = 'message-actions';
+
+  const displayModel = modelName ? formatModelName(modelName) : '';
+
+  actions.innerHTML = `
+    <div class="message-actions-left">
+      <button title="Copy" data-action="copy">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+      </button>
+    </div>
+    ${displayModel ? `<span class="message-model">${displayModel}</span>` : ''}
+  `;
+
+  actions.querySelector('[data-action="copy"]').addEventListener('click', () => {
+    navigator.clipboard.writeText(rawContent);
+  });
+
+  return actions;
 }
 
 function showError(text) {
@@ -441,7 +507,8 @@ async function streamResponse(apiKey, model, tabId) {
   sendBtn.disabled = true;
 
   const shouldRenderStream = activeTabId === tabId;
-  const assistantDiv = shouldRenderStream ? addMessage('assistant', '') : null;
+  const assistantWrapper = shouldRenderStream ? addMessage('assistant', '', { showActions: false }) : null;
+  const assistantDiv = assistantWrapper ? assistantWrapper.querySelector('.message-content') : null;
   if (assistantDiv) {
     assistantDiv.classList.add('streaming');
   }
@@ -536,6 +603,11 @@ async function streamResponse(apiKey, model, tabId) {
       assistantDiv.classList.remove('streaming');
     }
 
+    // Add action bar after streaming completes
+    if (assistantWrapper && activeTabId === tabId && fullContent) {
+      assistantWrapper.appendChild(createAssistantActions(fullContent, model));
+    }
+
     // Add to conversation history if tab still exists
     if (tabStates.has(tabId)) {
       const state = getTabState(tabId);
@@ -546,8 +618,8 @@ async function streamResponse(apiKey, model, tabId) {
     }
 
   } catch (err) {
-    if (assistantDiv) {
-      assistantDiv.remove();
+    if (assistantWrapper) {
+      assistantWrapper.remove();
     }
     if (activeTabId === tabId) {
       showError(err.message);
