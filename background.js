@@ -166,10 +166,7 @@ async function getPageContent(tabId) {
 
     if (results && results[0] && results[0].result) {
       const data = results[0].result;
-      // Truncate content to 30,000 chars
-      if (data.content && data.content.length > 30000) {
-        data.content = data.content.substring(0, 30000) + '\n\n[Content truncated — showing first 30,000 characters]';
-      }
+      // No content truncation — Gemini 2.5 supports 1M input tokens
       return data;
     }
 

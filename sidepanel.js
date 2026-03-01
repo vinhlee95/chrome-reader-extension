@@ -16,7 +16,7 @@ const toneSelect = document.getElementById('tone-select');
 const langSelect = document.getElementById('lang-select');
 
 // Max conversation messages to keep (rolling window)
-const MAX_HISTORY = 20;
+const MAX_HISTORY = 100;
 
 // Theme
 const themeToggle = document.getElementById('theme-toggle');
