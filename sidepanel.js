@@ -12,6 +12,7 @@ const settingsBtn = document.getElementById('settings-btn');
 const bannerSettingsBtn = document.getElementById('banner-settings-btn');
 const apiKeyBanner = document.getElementById('api-key-banner');
 const pageTitleEl = document.getElementById('page-title');
+const toneToggle = document.getElementById('tone-toggle');
 
 // Max conversation messages to keep (rolling window)
 const MAX_HISTORY = 20;
@@ -25,6 +26,7 @@ const themeIcons = {
 };
 const themeCycle = ['system', 'light', 'dark'];
 let currentTheme = 'system';
+let isChillLaxMode = true;
 
 function createDefaultTabState() {
   return {
@@ -68,13 +70,28 @@ function cycleTheme() {
   chrome.storage.local.set({ theme_preference: next });
 }
 
+function applyToneMode(enabled) {
+  isChillLaxMode = enabled;
+  toneToggle.classList.toggle('active', enabled);
+  toneToggle.textContent = enabled ? 'ChillLax' : 'Default';
+  toneToggle.title = enabled ? 'ChillLax mode is on' : 'Default mode is on';
+  toneToggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+}
+
+function toggleToneMode() {
+  const next = !isChillLaxMode;
+  applyToneMode(next);
+  chrome.storage.local.set({ chilllax_mode: next });
+}
+
 // Init
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
   // Load and apply theme
-  const { theme_preference } = await chrome.storage.local.get(['theme_preference']);
+  const { theme_preference, chilllax_mode } = await chrome.storage.local.get(['theme_preference', 'chilllax_mode']);
   applyTheme(theme_preference || 'system');
+  applyToneMode(chilllax_mode !== false);
 
   setupEventListeners();
 
@@ -112,6 +129,7 @@ function setupEventListeners() {
 
   // Theme toggle
   themeToggle.addEventListener('click', cycleTheme);
+  toneToggle.addEventListener('click', toggleToneMode);
 
   // Settings buttons
   settingsBtn.addEventListener('click', openSettings);
@@ -236,8 +254,20 @@ async function fetchPageContent(tabId = activeTabId) {
 
 function buildSystemPrompt(tabId) {
   const state = getTabState(tabId);
+  const toneInstructions = isChillLaxMode
+    ? `Tone instructions:
+- Respond with a casual Gen Z vibe.
+- Use emojis frequently to keep the vibe playful and expressive.
+- Use slang naturally and keep the tone chill, casual, and less serious.
+- Keep responses clear and accurate while sounding friendly and fun.`
+    : `Tone instructions:
+- Use a neutral, professional tone.
+- Do not force slang or any specific style.`;
+
   if (!state.pageContent) {
-    return 'You are a helpful assistant. The user wanted to ask about a webpage, but the content could not be loaded.';
+    return `You are a helpful assistant. The user wanted to ask about a webpage, but the content could not be loaded.
+
+${toneInstructions}`;
   }
 
   return `You are a helpful assistant that answers questions about web pages. You have access to the following page content:
@@ -252,7 +282,9 @@ Instructions:
 - Answer the user's questions based on the page content above.
 - Be concise and helpful.
 - If the answer isn't in the page content, say so.
-- Use markdown formatting for readability.`;
+- Use markdown formatting for readability.
+
+${toneInstructions}`;
 }
 
 async function handleSend() {

@@ -178,6 +178,31 @@ select {
   color: var(--text-primary);
 }
 
+.mode-toggle {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  height: 28px;
+  min-width: 74px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+
+.mode-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.mode-toggle.active {
+  color: #fff;
+  border-color: transparent;
+  background: var(--accent);
+}
+
 /* Page context bar */
 .page-context {
   padding: 8px 16px;
