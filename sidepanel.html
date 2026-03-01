@@ -13,12 +13,6 @@
     <header class="header">
       <h1 id="page-title">Chrome Reader</h1>
       <div style="display:flex;align-items:center;gap:4px;">
-        <div class="tone-select-wrapper">
-          <select id="tone-select" class="tone-select" title="Tone mode">
-            <option value="chill">Chill</option>
-            <option value="normal">Normal</option>
-          </select>
-        </div>
         <button id="theme-toggle" class="icon-btn" title="Toggle theme">
           <svg id="theme-icon-system" width="20" height="20" viewBox="0 0 20 20" fill="none">
             <rect x="3" y="4" width="14" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
@@ -62,21 +56,68 @@
     <div class="input-area">
       <div class="input-pill">
         <textarea id="user-input" placeholder="Ask about this page..." rows="1"></textarea>
-        <div class="lang-select-wrapper">
-          <svg class="lang-globe-icon" width="12" height="12" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-            <path d="M2 12h20M12 2c3 3.6 3 14.4 0 20M12 2c-3 3.6-3 14.4 0 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <select id="lang-select" class="lang-select" title="Response language">
-            <option value="default">Default</option>
-            <option value="en">English</option>
-          </select>
+        <div class="input-controls">
+          <div class="mode-selector" id="tone-selector">
+            <button class="mode-btn" id="tone-btn" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                <line x1="15" y1="9" x2="15.01" y2="9"/>
+              </svg>
+              <span id="tone-label">Chill</span>
+              <svg class="chevron" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="mode-dropdown" id="tone-dropdown">
+              <div class="mode-option selected" data-value="chill">
+                <div class="mode-option-header">
+                  <span class="mode-option-name">Chill</span>
+                  <svg class="mode-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <span class="mode-option-desc">Casual Gen Z vibes with emojis and slang</span>
+              </div>
+              <div class="mode-option" data-value="normal">
+                <div class="mode-option-header">
+                  <span class="mode-option-name">Normal</span>
+                  <svg class="mode-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <span class="mode-option-desc">Clean and professional responses</span>
+              </div>
+            </div>
+          </div>
+          <div class="mode-selector" id="lang-selector">
+            <button class="mode-btn" id="lang-btn" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M2 12h20M12 2c3 3.6 3 14.4 0 20M12 2c-3 3.6-3 14.4 0 20"/>
+              </svg>
+              <span id="lang-label">Default</span>
+              <svg class="chevron" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="mode-dropdown" id="lang-dropdown">
+              <div class="mode-option selected" data-value="default">
+                <div class="mode-option-header">
+                  <span class="mode-option-name">Default</span>
+                  <svg class="mode-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <span class="mode-option-desc">Responds in the page's language</span>
+              </div>
+              <div class="mode-option" data-value="en">
+                <div class="mode-option-header">
+                  <span class="mode-option-name">English</span>
+                  <svg class="mode-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <span class="mode-option-desc">Always responds in English</span>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1"></div>
+          <button id="send-btn" title="Send">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
         </div>
-        <button id="send-btn" title="Send">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
       </div>
     </div>
   </div>

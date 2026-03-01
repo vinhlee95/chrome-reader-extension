@@ -12,8 +12,14 @@ const settingsBtn = document.getElementById('settings-btn');
 const bannerSettingsBtn = document.getElementById('banner-settings-btn');
 const apiKeyBanner = document.getElementById('api-key-banner');
 const pageTitleEl = document.getElementById('page-title');
-const toneSelect = document.getElementById('tone-select');
-const langSelect = document.getElementById('lang-select');
+const toneBtn = document.getElementById('tone-btn');
+const toneLabel = document.getElementById('tone-label');
+const toneSelector = document.getElementById('tone-selector');
+const toneDropdown = document.getElementById('tone-dropdown');
+const langBtn = document.getElementById('lang-btn');
+const langLabel = document.getElementById('lang-label');
+const langSelector = document.getElementById('lang-selector');
+const langDropdown = document.getElementById('lang-dropdown');
 
 // Max conversation messages to keep (rolling window)
 const MAX_HISTORY = 100;
@@ -73,26 +79,34 @@ function cycleTheme() {
   chrome.storage.local.set({ theme_preference: next });
 }
 
+const toneModeLabels = { chill: 'Chill', normal: 'Normal' };
+const langModeLabels = { default: 'Default', en: 'English' };
+
 function applyToneMode(mode) {
   toneMode = mode;
-  toneSelect.value = mode;
-}
-
-function handleToneChange() {
-  const mode = toneSelect.value;
-  applyToneMode(mode);
-  chrome.storage.local.set({ tone_mode: mode });
+  toneLabel.textContent = toneModeLabels[mode] || mode;
+  toneDropdown.querySelectorAll('.mode-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.value === mode);
+  });
 }
 
 function applyLangMode(mode) {
   langMode = mode;
-  langSelect.value = mode;
+  langLabel.textContent = langModeLabels[mode] || mode;
+  langDropdown.querySelectorAll('.mode-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.value === mode);
+  });
 }
 
-function handleLangChange() {
-  const mode = langSelect.value;
-  applyLangMode(mode);
-  chrome.storage.local.set({ lang_mode: mode });
+function toggleDropdown(selector) {
+  const isOpen = selector.classList.contains('open');
+  // Close all dropdowns first
+  document.querySelectorAll('.mode-selector.open').forEach(s => s.classList.remove('open'));
+  if (!isOpen) selector.classList.add('open');
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll('.mode-selector.open').forEach(s => s.classList.remove('open'));
 }
 
 // Init
@@ -146,8 +160,35 @@ function setupEventListeners() {
 
   // Theme toggle
   themeToggle.addEventListener('click', cycleTheme);
-  toneSelect.addEventListener('change', handleToneChange);
-  langSelect.addEventListener('change', handleLangChange);
+
+  // Custom dropdown toggles
+  toneBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDropdown(toneSelector);
+  });
+  langBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDropdown(langSelector);
+  });
+
+  // Dropdown option clicks
+  toneDropdown.addEventListener('click', (e) => {
+    const opt = e.target.closest('.mode-option');
+    if (!opt) return;
+    applyToneMode(opt.dataset.value);
+    chrome.storage.local.set({ tone_mode: opt.dataset.value });
+    closeAllDropdowns();
+  });
+  langDropdown.addEventListener('click', (e) => {
+    const opt = e.target.closest('.mode-option');
+    if (!opt) return;
+    applyLangMode(opt.dataset.value);
+    chrome.storage.local.set({ lang_mode: opt.dataset.value });
+    closeAllDropdowns();
+  });
+
+  // Close dropdowns on outside click
+  document.addEventListener('click', closeAllDropdowns);
 
   // Settings buttons
   settingsBtn.addEventListener('click', openSettings);
