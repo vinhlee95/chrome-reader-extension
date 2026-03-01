@@ -11,7 +11,6 @@ const sendBtn = document.getElementById('send-btn');
 const settingsBtn = document.getElementById('settings-btn');
 const bannerSettingsBtn = document.getElementById('banner-settings-btn');
 const apiKeyBanner = document.getElementById('api-key-banner');
-const pageContextEl = document.getElementById('page-context');
 const pageTitleEl = document.getElementById('page-title');
 
 // Max conversation messages to keep (rolling window)
@@ -117,9 +116,10 @@ async function fetchPageContent() {
     pageContent = response;
     currentPageUrl = response.url;
 
-    // Show page context
-    pageTitleEl.textContent = response.title || 'Untitled page';
-    pageContextEl.classList.remove('hidden');
+    // Update header title
+    const title = response.title || 'Untitled page';
+    pageTitleEl.textContent = title;
+    document.title = title;
   } catch (err) {
     showError('Could not connect to the page. Try refreshing.');
   }
@@ -168,8 +168,9 @@ async function handleSend() {
       if (!pageContent || freshContent.url !== currentPageUrl) {
         pageContent = freshContent;
         currentPageUrl = freshContent.url;
-        pageTitleEl.textContent = freshContent.title || 'Untitled page';
-        pageContextEl.classList.remove('hidden');
+        const freshTitle = freshContent.title || 'Untitled page';
+        pageTitleEl.textContent = freshTitle;
+        document.title = freshTitle;
       }
     }
   } catch (e) {
