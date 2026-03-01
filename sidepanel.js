@@ -1,8 +1,8 @@
 // State
-let conversationHistory = [];
+const tabStates = new Map();
+let activeTabId = null;
 let isStreaming = false;
-let pageContent = null;
-let currentPageUrl = null;
+let streamingTabId = null;
 
 // DOM refs
 const messagesEl = document.getElementById('messages');
@@ -25,6 +25,30 @@ const themeIcons = {
 };
 const themeCycle = ['system', 'light', 'dark'];
 let currentTheme = 'system';
+
+function createDefaultTabState() {
+  return {
+    conversationHistory: [],
+    pageContent: null,
+    currentPageUrl: null
+  };
+}
+
+function getTabState(tabId) {
+  if (typeof tabId !== 'number') {
+    return createDefaultTabState();
+  }
+
+  if (!tabStates.has(tabId)) {
+    tabStates.set(tabId, createDefaultTabState());
+  }
+
+  return tabStates.get(tabId);
+}
+
+function clearTabState(tabId) {
+  tabStates.delete(tabId);
+}
 
 function applyTheme(theme) {
   currentTheme = theme;
@@ -52,9 +76,22 @@ async function init() {
   const { theme_preference } = await chrome.storage.local.get(['theme_preference']);
   applyTheme(theme_preference || 'system');
 
-  checkApiKey();
-  await fetchPageContent();
   setupEventListeners();
+
+  const activeTabResponse = await chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_ID' }).catch(() => ({ error: 'No active tab found' }));
+  if (activeTabResponse && !activeTabResponse.error && typeof activeTabResponse.tabId === 'number') {
+    activeTabId = activeTabResponse.tabId;
+    getTabState(activeTabId);
+    await fetchPageContent(activeTabId);
+    renderTabState(activeTabId);
+  } else {
+    renderTabState(null);
+    if (activeTabResponse?.error) {
+      showError(activeTabResponse.error);
+    }
+  }
+
+  checkApiKey();
 }
 
 function setupEventListeners() {
@@ -80,13 +117,59 @@ function setupEventListeners() {
   settingsBtn.addEventListener('click', openSettings);
   bannerSettingsBtn.addEventListener('click', openSettings);
 
-  // Suggestion buttons
-  document.querySelectorAll('.suggestion-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const prompt = btn.dataset.prompt;
-      userInput.value = prompt;
-      handleSend();
-    });
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'TAB_ACTIVATED' && typeof message.tabId === 'number') {
+      switchToTab(message.tabId);
+      return;
+    }
+
+    if (message.type === 'TAB_REMOVED' && typeof message.tabId === 'number') {
+      clearTabState(message.tabId);
+
+      if (streamingTabId === message.tabId) {
+        streamingTabId = null;
+      }
+
+      if (activeTabId === message.tabId) {
+        chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_ID' })
+          .then((response) => {
+            if (response && !response.error && typeof response.tabId === 'number') {
+              switchToTab(response.tabId);
+            } else {
+              activeTabId = null;
+              renderTabState(null);
+            }
+          })
+          .catch(() => {
+            activeTabId = null;
+            renderTabState(null);
+          });
+      }
+      return;
+    }
+
+    if (message.type === 'TAB_UPDATED' && typeof message.tabId === 'number') {
+      const tabId = message.tabId;
+      const shouldTrackTab = tabId === activeTabId || tabStates.has(tabId);
+      if (!shouldTrackTab) {
+        return;
+      }
+
+      const state = getTabState(tabId);
+
+      if (typeof message.url === 'string' && state.currentPageUrl && message.url !== state.currentPageUrl) {
+        tabStates.set(tabId, createDefaultTabState());
+        if (tabId === activeTabId) {
+          renderTabState(tabId);
+        }
+      }
+
+      if (message.status === 'complete' && tabId === activeTabId && !isStreaming) {
+        fetchPageContent(tabId).then(() => {
+          renderTabState(tabId);
+        });
+      }
+    }
   });
 }
 
@@ -104,39 +187,66 @@ function checkApiKey() {
   });
 }
 
-async function fetchPageContent() {
-  try {
-    const response = await chrome.runtime.sendMessage({ type: 'GET_PAGE_CONTENT' });
+async function switchToTab(tabId) {
+  if (typeof tabId !== 'number') {
+    return;
+  }
 
-    if (response.error) {
-      showError(response.error);
-      return;
-    }
+  activeTabId = tabId;
+  const state = getTabState(tabId);
+  renderTabState(tabId);
 
-    pageContent = response;
-    currentPageUrl = response.url;
-
-    // Update header title
-    const title = response.title || 'Untitled page';
-    pageTitleEl.textContent = title;
-    document.title = title;
-  } catch (err) {
-    showError('Could not connect to the page. Try refreshing.');
+  if (!state.pageContent) {
+    await fetchPageContent(tabId);
+    renderTabState(tabId);
   }
 }
 
-function buildSystemPrompt() {
-  if (!pageContent) {
+async function fetchPageContent(tabId = activeTabId) {
+  if (typeof tabId !== 'number') {
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'GET_PAGE_CONTENT', tabId });
+
+    const state = getTabState(tabId);
+
+    if (response.error) {
+      if (tabId === activeTabId) {
+        showError(response.error);
+      }
+      return;
+    }
+
+    state.pageContent = response;
+    state.currentPageUrl = response.url;
+
+    if (tabId === activeTabId) {
+      const title = response.title || 'Untitled page';
+      pageTitleEl.textContent = title;
+      document.title = title;
+    }
+  } catch (err) {
+    if (tabId === activeTabId) {
+      showError('Could not connect to the page. Try refreshing.');
+    }
+  }
+}
+
+function buildSystemPrompt(tabId) {
+  const state = getTabState(tabId);
+  if (!state.pageContent) {
     return 'You are a helpful assistant. The user wanted to ask about a webpage, but the content could not be loaded.';
   }
 
   return `You are a helpful assistant that answers questions about web pages. You have access to the following page content:
 
-**Page Title:** ${pageContent.title}
-**Page URL:** ${pageContent.url}
+**Page Title:** ${state.pageContent.title}
+**Page URL:** ${state.pageContent.url}
 
 **Page Content:**
-${pageContent.content}
+${state.pageContent.content}
 
 Instructions:
 - Answer the user's questions based on the page content above.
@@ -147,7 +257,9 @@ Instructions:
 
 async function handleSend() {
   const text = userInput.value.trim();
-  if (!text || isStreaming) return;
+  if (!text || isStreaming || typeof activeTabId !== 'number') return;
+
+  const state = getTabState(activeTabId);
 
   // Check for API key
   const { openrouter_api_key, openrouter_model } = await chrome.storage.local.get(['openrouter_api_key', 'openrouter_model']);
@@ -157,21 +269,21 @@ async function handleSend() {
     return;
   }
 
-  // Re-fetch content if not yet loaded or URL changed
+  // Re-fetch content for this tab and reset conversation if URL changed
   try {
-    const freshContent = await chrome.runtime.sendMessage({ type: 'GET_PAGE_CONTENT' });
+    const freshContent = await chrome.runtime.sendMessage({ type: 'GET_PAGE_CONTENT', tabId: activeTabId });
     if (freshContent && !freshContent.error) {
-      if (freshContent.url !== currentPageUrl) {
-        // New page — reset conversation
-        conversationHistory = [];
+      if (freshContent.url !== state.currentPageUrl) {
+        state.conversationHistory = [];
+        renderTabState(activeTabId);
       }
-      if (!pageContent || freshContent.url !== currentPageUrl) {
-        pageContent = freshContent;
-        currentPageUrl = freshContent.url;
-        const freshTitle = freshContent.title || 'Untitled page';
-        pageTitleEl.textContent = freshTitle;
-        document.title = freshTitle;
-      }
+
+      state.pageContent = freshContent;
+      state.currentPageUrl = freshContent.url;
+
+      const freshTitle = freshContent.title || 'Untitled page';
+      pageTitleEl.textContent = freshTitle;
+      document.title = freshTitle;
     }
   } catch (e) {
     // Continue with cached content
@@ -183,11 +295,11 @@ async function handleSend() {
 
   // Add user message
   addMessage('user', text);
-  conversationHistory.push({ role: 'user', content: text });
+  state.conversationHistory.push({ role: 'user', content: text });
 
   // Trim conversation history
-  if (conversationHistory.length > MAX_HISTORY) {
-    conversationHistory = conversationHistory.slice(-MAX_HISTORY);
+  if (state.conversationHistory.length > MAX_HISTORY) {
+    state.conversationHistory = state.conversationHistory.slice(-MAX_HISTORY);
   }
 
   // Clear input
@@ -196,7 +308,7 @@ async function handleSend() {
 
   // Stream response
   const model = openrouter_model || 'anthropic/claude-sonnet-4';
-  await streamResponse(openrouter_api_key, model);
+  await streamResponse(openrouter_api_key, model, activeTabId);
 }
 
 function addMessage(role, content) {
@@ -226,6 +338,56 @@ function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+function renderWelcome() {
+  messagesEl.innerHTML = `
+    <div class="welcome">
+      <p>Ask me anything about the current page.</p>
+      <div class="suggestions">
+        <button class="suggestion-btn" data-prompt="Summarize this page">Summarize this page</button>
+        <button class="suggestion-btn" data-prompt="What are the key points?">What are the key points?</button>
+        <button class="suggestion-btn" data-prompt="Explain in simple terms">Explain in simple terms</button>
+      </div>
+    </div>
+  `;
+
+  attachSuggestionListeners(messagesEl);
+}
+
+function renderTabState(tabId) {
+  if (typeof tabId !== 'number') {
+    messagesEl.innerHTML = '';
+    renderWelcome();
+    pageTitleEl.textContent = 'Chrome Reader';
+    document.title = 'Chrome Reader';
+    return;
+  }
+
+  const state = getTabState(tabId);
+  messagesEl.innerHTML = '';
+
+  if (!state.conversationHistory.length) {
+    renderWelcome();
+  } else {
+    for (const message of state.conversationHistory) {
+      addMessage(message.role, message.content);
+    }
+  }
+
+  const title = state.pageContent?.title || 'Chrome Reader';
+  pageTitleEl.textContent = title;
+  document.title = title;
+}
+
+function attachSuggestionListeners(root = document) {
+  root.querySelectorAll('.suggestion-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const prompt = btn.dataset.prompt;
+      userInput.value = prompt;
+      handleSend();
+    });
+  });
+}
+
 function renderMarkdown(text) {
   if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
     return DOMPurify.sanitize(marked.parse(text));
@@ -240,16 +402,22 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-async function streamResponse(apiKey, model) {
+async function streamResponse(apiKey, model, tabId) {
   isStreaming = true;
+  streamingTabId = tabId;
   sendBtn.disabled = true;
 
-  const assistantDiv = addMessage('assistant', '');
-  assistantDiv.classList.add('streaming');
+  const shouldRenderStream = activeTabId === tabId;
+  const assistantDiv = shouldRenderStream ? addMessage('assistant', '') : null;
+  if (assistantDiv) {
+    assistantDiv.classList.add('streaming');
+  }
 
   let fullContent = '';
 
   try {
+    const stateAtStart = getTabState(tabId);
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -261,8 +429,8 @@ async function streamResponse(apiKey, model) {
       body: JSON.stringify({
         model: model,
         messages: [
-          { role: 'system', content: buildSystemPrompt() },
-          ...conversationHistory
+          { role: 'system', content: buildSystemPrompt(tabId) },
+          ...stateAtStart.conversationHistory
         ],
         stream: true
       })
@@ -305,8 +473,10 @@ async function streamResponse(apiKey, model) {
           const delta = json.choices?.[0]?.delta?.content;
           if (delta) {
             fullContent += delta;
-            assistantDiv.innerHTML = renderMarkdown(fullContent);
-            scrollToBottom();
+            if (assistantDiv && activeTabId === tabId) {
+              assistantDiv.innerHTML = renderMarkdown(fullContent);
+              scrollToBottom();
+            }
           }
         } catch (e) {
           // Skip malformed JSON chunks
@@ -328,18 +498,36 @@ async function streamResponse(apiKey, model) {
     }
 
     // Final render
-    assistantDiv.innerHTML = renderMarkdown(fullContent);
-    assistantDiv.classList.remove('streaming');
+    if (assistantDiv && activeTabId === tabId) {
+      assistantDiv.innerHTML = renderMarkdown(fullContent);
+      assistantDiv.classList.remove('streaming');
+    }
 
-    // Add to conversation history
-    conversationHistory.push({ role: 'assistant', content: fullContent });
+    // Add to conversation history if tab still exists
+    if (tabStates.has(tabId)) {
+      const state = getTabState(tabId);
+      state.conversationHistory.push({ role: 'assistant', content: fullContent });
+      if (state.conversationHistory.length > MAX_HISTORY) {
+        state.conversationHistory = state.conversationHistory.slice(-MAX_HISTORY);
+      }
+    }
 
   } catch (err) {
-    assistantDiv.remove();
-    showError(err.message);
+    if (assistantDiv) {
+      assistantDiv.remove();
+    }
+    if (activeTabId === tabId) {
+      showError(err.message);
+    }
   } finally {
     isStreaming = false;
+    streamingTabId = null;
     sendBtn.disabled = false;
+
+    if (typeof activeTabId === 'number') {
+      renderTabState(activeTabId);
+    }
+
     userInput.focus();
   }
 }
