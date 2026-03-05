@@ -63,4 +63,4 @@ If this policy changes, the updated version will be published in the extension's
 
 ## Contact
 
-For privacy questions or concerns, please open an issue on the GitHub repository.
+For privacy questions or concerns, please [open an issue](https://github.com/vinhlee95/chrome-reader-extension/issues) on the GitHub repository.

@@ -85,5 +85,5 @@ Suggested design: Extension icon on the left, tagline "Chat with Any Webpage" on
 ## Privacy Policy URL
 Host `PRIVACY_POLICY.md` publicly (e.g., as a GitHub Pages page or a raw GitHub URL) and paste the link into the store submission form. Example:
 ```
-https://raw.githubusercontent.com/<your-username>/chrome-reader-extension/main/PRIVACY_POLICY.md
+https://raw.githubusercontent.com/vinhlee95/chrome-reader-extension/main/PRIVACY_POLICY.md
 ```
