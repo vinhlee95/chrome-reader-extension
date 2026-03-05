@@ -506,9 +506,10 @@ ${state.pageContent.content}
 
 Instructions:
 - Prioritize answering from the page content above when relevant.
-- Be concise and helpful.
-- If the page content does not contain key information needed to answer, use your general knowledge to provide the best answer.
-- When you use general knowledge, briefly note that the detail was not found in the page content.
+- Be extremely concise. Give the shortest useful answer — no filler, no over-explaining. Scale response length to match the complexity of the question, not the length of the page.
+- Use short paragraphs, bullets, or numbered lists. Avoid walls of text.
+- End naturally — do not add a summary or closing line. The user can always ask follow-up questions for more detail.
+- If the page content does not contain key information needed to answer, use your general knowledge and briefly note it.
 - Use markdown formatting for readability.
 
 ${toneInstructions}
@@ -568,7 +569,7 @@ async function handleSend(options = {}) {
 
   const languageContext = resolveTargetLanguage(activeTabId);
   const modelUserText = applyIdeasRole
-    ? `The user is a "${applyIdeasRole}". Based on the ideas, concepts, and insights from this article/page, provide specific, actionable ways they can apply these ideas in their role as a ${applyIdeasRole}. Tailor the advice to be practical and directly relevant to their day-to-day work. Use concrete examples where possible.`
+    ? `The user is a "${applyIdeasRole}". Based on this article/page, give the top 3-5 most impactful ways they can apply these ideas as a ${applyIdeasRole}. Be concise — focus on the most relevant, actionable applications with concrete examples.`
     : isSuggestion
       ? buildSuggestionModelText(text, languageContext)
       : text;
