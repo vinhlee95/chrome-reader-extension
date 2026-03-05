@@ -156,10 +156,17 @@ async function getPageContent(tabId) {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => {
+        const htmlLang = (document.documentElement?.lang || '').trim();
+        const metaContentLanguage = (document.querySelector('meta[http-equiv="content-language"]')?.getAttribute('content') || '').trim();
+        const metaLanguage = (document.querySelector('meta[name="language"]')?.getAttribute('content') || '').trim();
+
         return {
           title: document.title,
           url: location.href,
-          content: document.body.innerText
+          content: document.body.innerText,
+          pageLang: htmlLang,
+          metaContentLanguage,
+          metaLanguage
         };
       }
     });

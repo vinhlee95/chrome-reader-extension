@@ -311,7 +311,163 @@ async function fetchPageContent(tabId = activeTabId) {
   }
 }
 
-function buildSystemPrompt(tabId) {
+const KNOWN_LANGUAGE_NAMES = {
+  en: 'English',
+  vi: 'Vietnamese',
+  ja: 'Japanese',
+  ko: 'Korean',
+  zh: 'Chinese',
+  th: 'Thai',
+  ar: 'Arabic',
+  ru: 'Russian',
+  hi: 'Hindi'
+};
+
+const VIETNAMESE_CHAR_REGEX = /[\u0103\u00e2\u0111\u00ea\u00f4\u01a1\u01b0\u0102\u00c2\u0110\u00ca\u00d4\u01a0\u01af\u00e0\u00e1\u1ea1\u1ea3\u00e3\u1eb1\u1eaf\u1eb7\u1eb3\u1eb5\u1ea7\u1ea5\u1ead\u1ea9\u1eab\u00e8\u00e9\u1eb9\u1ebb\u1ebd\u1ec1\u1ebf\u1ec7\u1ec3\u1ec5\u00ec\u00ed\u1ecb\u1ec9\u0129\u00f2\u00f3\u1ecd\u1ecf\u00f5\u1ed3\u1ed1\u1ed9\u1ed5\u1ed7\u1edd\u1edb\u1ee3\u1edf\u1ee1\u00f9\u00fa\u1ee5\u1ee7\u0169\u1eeb\u1ee9\u1ef1\u1eed\u1eef\u1ef3\u00fd\u1ef5\u1ef7\u1ef9]/g;
+const CJK_REGEX = /[\u4E00-\u9FFF]/g;
+const HIRAGANA_KATAKANA_REGEX = /[\u3040-\u30FF]/g;
+const HANGUL_REGEX = /[\uAC00-\uD7AF]/g;
+const CYRILLIC_REGEX = /[\u0400-\u04FF]/g;
+const THAI_REGEX = /[\u0E00-\u0E7F]/g;
+const ARABIC_REGEX = /[\u0600-\u06FF]/g;
+const DEVANAGARI_REGEX = /[\u0900-\u097F]/g;
+
+const VIETNAMESE_WORDS = [' v\u00e0 ', ' c\u1ee7a ', ' kh\u00f4ng ', ' \u0111\u01b0\u1ee3c ', ' nh\u1eefng ', ' trong ', ' m\u1ed9t ', ' c\u00e1c ', ' \u0111\u1ec3 ', ' v\u1edbi ', ' n\u00e0y '];
+const ENGLISH_WORDS = [' the ', ' and ', ' to ', ' of ', ' in ', ' is ', ' for ', ' on ', ' with ', ' that '];
+
+function countMatches(text, regex) {
+  if (!text) return 0;
+  const matches = text.match(regex);
+  return matches ? matches.length : 0;
+}
+
+function countWordHits(text, words) {
+  if (!text) return 0;
+  let total = 0;
+  for (const word of words) {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'g');
+    total += countMatches(text, regex);
+  }
+  return total;
+}
+
+function normalizeLanguageCode(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  const cleaned = raw.trim().toLowerCase().replace(/_/g, '-');
+  if (!cleaned) return '';
+
+  if (cleaned.startsWith('zh')) return 'zh';
+  if (cleaned.startsWith('ja')) return 'ja';
+  if (cleaned.startsWith('ko')) return 'ko';
+  if (cleaned.startsWith('vi')) return 'vi';
+  if (cleaned.startsWith('th')) return 'th';
+  if (cleaned.startsWith('ar')) return 'ar';
+  if (cleaned.startsWith('ru')) return 'ru';
+  if (cleaned.startsWith('hi')) return 'hi';
+  if (cleaned.startsWith('en')) return 'en';
+
+  const shortCode = cleaned.split('-')[0];
+  return shortCode || '';
+}
+
+function parseLanguageHint(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  const firstToken = raw.split(',')[0].split(';')[0].trim();
+  return normalizeLanguageCode(firstToken);
+}
+
+function languageDescriptor(code) {
+  const normalized = normalizeLanguageCode(code) || 'en';
+  return {
+    code: normalized,
+    name: KNOWN_LANGUAGE_NAMES[normalized] || normalized
+  };
+}
+
+function extractLanguageHints(pageContent) {
+  if (!pageContent) return [];
+  const hints = [
+    parseLanguageHint(pageContent.pageLang),
+    parseLanguageHint(pageContent.metaContentLanguage),
+    parseLanguageHint(pageContent.metaLanguage)
+  ].filter(Boolean);
+
+  return [...new Set(hints)];
+}
+
+function detectDominantLanguage(pageContent) {
+  const title = pageContent?.title || '';
+  const content = pageContent?.content || '';
+  const sample = `${title}\n${content}`.slice(0, 20000);
+
+  if (!sample.trim()) {
+    return 'en';
+  }
+
+  const japaneseKanaCount = countMatches(sample, HIRAGANA_KATAKANA_REGEX);
+  const cjkCount = countMatches(sample, CJK_REGEX);
+
+  if (japaneseKanaCount > 0) return 'ja';
+  if (countMatches(sample, HANGUL_REGEX) > 0) return 'ko';
+  if (countMatches(sample, THAI_REGEX) > 0) return 'th';
+  if (countMatches(sample, ARABIC_REGEX) > 0) return 'ar';
+  if (countMatches(sample, CYRILLIC_REGEX) > 0) return 'ru';
+  if (countMatches(sample, DEVANAGARI_REGEX) > 0) return 'hi';
+  if (cjkCount > 0) return 'zh';
+
+  const lowered = ` ${sample.toLowerCase()} `;
+  const vietnameseScore = countMatches(sample, VIETNAMESE_CHAR_REGEX) + countWordHits(lowered, VIETNAMESE_WORDS);
+  const englishScore = countWordHits(lowered, ENGLISH_WORDS);
+
+  if (vietnameseScore > englishScore && vietnameseScore > 0) {
+    return 'vi';
+  }
+
+  if (englishScore > 0 || /[a-z]/i.test(sample)) {
+    return 'en';
+  }
+
+  return 'en';
+}
+
+function resolveTargetLanguage(tabId) {
+  if (langMode === 'en') {
+    return {
+      mode: 'en',
+      source: 'language-mode',
+      ...languageDescriptor('en')
+    };
+  }
+
+  const state = getTabState(tabId);
+  const pageContent = state.pageContent;
+  const hints = extractLanguageHints(pageContent);
+
+  if (hints.length > 0) {
+    return {
+      mode: 'default',
+      source: 'page-language-hint',
+      ...languageDescriptor(hints[0])
+    };
+  }
+
+  return {
+    mode: 'default',
+    source: 'dominant-content-detection',
+    ...languageDescriptor(detectDominantLanguage(pageContent))
+  };
+}
+
+function buildSuggestionModelText(promptText, languageContext) {
+  if (langMode !== 'default') {
+    return promptText;
+  }
+
+  return `[Internal language instruction: You must answer entirely in ${languageContext.name} (${languageContext.code}). Do not switch to English unless the target language is English.]\n\n${promptText}`;
+}
+
+function buildSystemPrompt(tabId, languageContext) {
   const state = getTabState(tabId);
   const toneInstructions = toneMode === 'chill'
     ? `Tone instructions:
@@ -323,9 +479,14 @@ function buildSystemPrompt(tabId) {
 - Use a neutral, professional tone.
 - Do not force slang or any specific style.`;
 
-  const langInstructions = langMode === 'en'
-    ? `Language: Always respond in English, regardless of the webpage's language.`
-    : `Language: You MUST respond in the same language as the webpage content, even if the user's question is in a different language. Detect the language of the page content and always use that language in your response. For example, if the page is in Vietnamese, respond in Vietnamese even if the user asks in English.`;
+  const langInstructions = `Language constraints (higher priority than style/tone):
+- Language mode: ${languageContext.mode}
+- Resolved target language: ${languageContext.name} (${languageContext.code})
+- Output must be entirely in ${languageContext.name} (${languageContext.code}).
+- Do not switch to English unless the resolved target language is English.
+- If the user writes in another language, still answer in ${languageContext.name}.
+- Keep unavoidable items unchanged (URLs, code, product names, proper nouns).
+- Before finalizing, self-check language consistency and rewrite to ${languageContext.name} if needed.`;
 
   if (!state.pageContent) {
     return `You are a helpful assistant. The user wanted to ask about a webpage, but the content could not be loaded.
@@ -357,12 +518,14 @@ ${langInstructions}`;
 
 let isSending = false;
 
-async function handleSend() {
-  const text = userInput.value.trim();
+async function handleSend(options = {}) {
+  const inputText = typeof options.text === 'string' ? options.text : userInput.value;
+  const text = inputText.trim();
   if (!text || isStreaming || isSending || typeof activeTabId !== 'number') return;
   isSending = true;
 
   const state = getTabState(activeTabId);
+  const isSuggestion = options.isSuggestion === true;
 
   // Check for API key
   const { openrouter_api_key, openrouter_model } = await chrome.storage.local.get(['openrouter_api_key', 'openrouter_model']);
@@ -401,6 +564,11 @@ async function handleSend() {
   addMessage('user', text);
   state.conversationHistory.push({ role: 'user', content: text });
 
+  const languageContext = resolveTargetLanguage(activeTabId);
+  const modelUserText = isSuggestion
+    ? buildSuggestionModelText(text, languageContext)
+    : text;
+
   // Trim conversation history
   if (state.conversationHistory.length > MAX_HISTORY) {
     state.conversationHistory = state.conversationHistory.slice(-MAX_HISTORY);
@@ -414,7 +582,10 @@ async function handleSend() {
   const model = openrouter_model || 'google/gemini-2.5-flash';
   lastUsedModel = model;
   isSending = false;
-  await streamResponse(openrouter_api_key, model, activeTabId);
+  await streamResponse(openrouter_api_key, model, activeTabId, {
+    modelUserText,
+    languageContext
+  });
 }
 
 function addMessage(role, content, { showActions = true } = {}) {
@@ -552,8 +723,10 @@ function attachSuggestionListeners(root = document) {
   root.querySelectorAll('.suggestion-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const prompt = btn.dataset.prompt;
-      userInput.value = prompt;
-      handleSend();
+      handleSend({
+        text: prompt,
+        isSuggestion: true
+      });
     });
   });
 }
@@ -572,7 +745,7 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-async function streamResponse(apiKey, model, tabId) {
+async function streamResponse(apiKey, model, tabId, requestOptions = {}) {
   isStreaming = true;
   streamingTabId = tabId;
   sendBtn.disabled = true;
@@ -588,6 +761,21 @@ async function streamResponse(apiKey, model, tabId) {
 
   try {
     const stateAtStart = getTabState(tabId);
+    const languageContext = requestOptions.languageContext || resolveTargetLanguage(tabId);
+    const requestMessages = [
+      { role: 'system', content: buildSystemPrompt(tabId, languageContext) },
+      ...stateAtStart.conversationHistory
+    ];
+
+    if (requestOptions.modelUserText && requestMessages.length > 1) {
+      const lastIndex = requestMessages.length - 1;
+      if (requestMessages[lastIndex].role === 'user') {
+        requestMessages[lastIndex] = {
+          ...requestMessages[lastIndex],
+          content: requestOptions.modelUserText
+        };
+      }
+    }
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -599,10 +787,7 @@ async function streamResponse(apiKey, model, tabId) {
       },
       body: JSON.stringify({
         model: model,
-        messages: [
-          { role: 'system', content: buildSystemPrompt(tabId) },
-          ...stateAtStart.conversationHistory
-        ],
+        messages: requestMessages,
         stream: true
       })
     });
