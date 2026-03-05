@@ -87,7 +87,7 @@ const toneModeLabels = { chill: 'Chill', normal: 'Normal' };
 const langModeLabels = { default: 'Default', en: 'English' };
 const modelLabels = {
   'google/gemini-2.5-flash': 'Gemini 2.5 Flash',
-  'google/gemini-2.0-flash-001': 'Gemini 2.0 Flash',
+  'google/gemini-3-flash-preview': 'Gemini 3.0 Flash',
   'anthropic/claude-sonnet-4-6': 'Sonnet 4.6'
 };
 
