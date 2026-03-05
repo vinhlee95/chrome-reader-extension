@@ -20,6 +20,10 @@ const langBtn = document.getElementById('lang-btn');
 const langLabel = document.getElementById('lang-label');
 const langSelector = document.getElementById('lang-selector');
 const langDropdown = document.getElementById('lang-dropdown');
+const modelBtn = document.getElementById('model-btn');
+const modelLabel = document.getElementById('model-label');
+const modelSelector = document.getElementById('model-selector');
+const modelDropdown = document.getElementById('model-dropdown');
 
 // Max conversation messages to keep (rolling window)
 const MAX_HISTORY = 100;
@@ -81,6 +85,11 @@ function cycleTheme() {
 
 const toneModeLabels = { chill: 'Chill', normal: 'Normal' };
 const langModeLabels = { default: 'Default', en: 'English' };
+const modelLabels = {
+  'google/gemini-2.5-flash': 'Gemini 2.5 Flash',
+  'google/gemini-3-flash-preview': 'Gemini 3.0 Flash',
+  'anthropic/claude-sonnet-4.6': 'Sonnet 4.6'
+};
 
 function applyToneMode(mode) {
   toneMode = mode;
@@ -95,6 +104,14 @@ function applyLangMode(mode) {
   langLabel.textContent = langModeLabels[mode] || mode;
   langDropdown.querySelectorAll('.mode-option').forEach(opt => {
     opt.classList.toggle('selected', opt.dataset.value === mode);
+  });
+}
+
+function applyModelMode(model) {
+  lastUsedModel = model;
+  modelLabel.textContent = modelLabels[model] || model;
+  modelDropdown.querySelectorAll('.mode-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.value === model);
   });
 }
 
@@ -114,7 +131,7 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
   // Load and apply theme
-  const { theme_preference, tone_mode, chilllax_mode, lang_mode } = await chrome.storage.local.get(['theme_preference', 'tone_mode', 'chilllax_mode', 'lang_mode']);
+  const { theme_preference, tone_mode, chilllax_mode, lang_mode, openrouter_model } = await chrome.storage.local.get(['theme_preference', 'tone_mode', 'chilllax_mode', 'lang_mode', 'openrouter_model']);
   applyTheme(theme_preference || 'system');
   // Migrate old chilllax_mode to new tone_mode
   if (tone_mode) {
@@ -123,6 +140,7 @@ async function init() {
     applyToneMode(chilllax_mode !== false ? 'chill' : 'normal');
   }
   applyLangMode(lang_mode || 'default');
+  applyModelMode(openrouter_model || 'google/gemini-2.5-flash');
 
   setupEventListeners();
 
@@ -170,6 +188,10 @@ function setupEventListeners() {
     e.stopPropagation();
     toggleDropdown(langSelector);
   });
+  modelBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDropdown(modelSelector);
+  });
 
   // Dropdown option clicks
   toneDropdown.addEventListener('click', (e) => {
@@ -184,6 +206,13 @@ function setupEventListeners() {
     if (!opt) return;
     applyLangMode(opt.dataset.value);
     chrome.storage.local.set({ lang_mode: opt.dataset.value });
+    closeAllDropdowns();
+  });
+  modelDropdown.addEventListener('click', (e) => {
+    const opt = e.target.closest('.mode-option');
+    if (!opt) return;
+    applyModelMode(opt.dataset.value);
+    chrome.storage.local.set({ openrouter_model: opt.dataset.value });
     closeAllDropdowns();
   });
 
