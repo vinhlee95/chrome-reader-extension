@@ -564,10 +564,14 @@ async function handleSend(options = {}) {
   addMessage('user', text);
   state.conversationHistory.push({ role: 'user', content: text });
 
+  const applyIdeasRole = options.applyIdeasRole || null;
+
   const languageContext = resolveTargetLanguage(activeTabId);
-  const modelUserText = isSuggestion
-    ? buildSuggestionModelText(text, languageContext)
-    : text;
+  const modelUserText = applyIdeasRole
+    ? `The user is a "${applyIdeasRole}". Based on the ideas, concepts, and insights from this article/page, provide specific, actionable ways they can apply these ideas in their role as a ${applyIdeasRole}. Tailor the advice to be practical and directly relevant to their day-to-day work. Use concrete examples where possible.`
+    : isSuggestion
+      ? buildSuggestionModelText(text, languageContext)
+      : text;
 
   // Trim conversation history
   if (state.conversationHistory.length > MAX_HISTORY) {
@@ -687,6 +691,7 @@ function renderWelcome() {
         <button class="suggestion-btn" data-prompt="Summarize this page">Summarize this page</button>
         <button class="suggestion-btn" data-prompt="What are the key points?">What are the key points?</button>
         <button class="suggestion-btn" data-prompt="Explain in simple terms">Explain in simple terms</button>
+        <button class="suggestion-btn" data-action="apply-ideas">Apply ideas to my role</button>
       </div>
     </div>
   `;
@@ -695,6 +700,9 @@ function renderWelcome() {
 }
 
 function renderTabState(tabId) {
+  pendingApplyIdeas = false;
+  userInput.placeholder = 'Ask about this page...';
+
   if (typeof tabId !== 'number') {
     messagesEl.innerHTML = '';
     renderWelcome();
@@ -722,12 +730,105 @@ function renderTabState(tabId) {
 function attachSuggestionListeners(root = document) {
   root.querySelectorAll('.suggestion-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (btn.dataset.action === 'apply-ideas') {
+        startApplyIdeasFlow();
+        return;
+      }
       const prompt = btn.dataset.prompt;
       handleSend({
         text: prompt,
         isSuggestion: true
       });
     });
+  });
+}
+
+let pendingApplyIdeas = false;
+
+const ROLE_OPTIONS = [
+  'Engineering Manager',
+  'Investor',
+  'Software Engineer',
+  'Product Manager',
+  'Designer',
+  'Data Scientist',
+  'Marketing Manager',
+  'Founder / CEO',
+  'Accountant',
+  'Teacher / Educator',
+  'Student',
+];
+
+function startApplyIdeasFlow() {
+  if (isStreaming || isSending || typeof activeTabId !== 'number') return;
+
+  pendingApplyIdeas = true;
+
+  // Hide welcome message
+  const welcomeEl = messagesEl.querySelector('.welcome');
+  if (welcomeEl) welcomeEl.remove();
+
+  // Show the user's selection as a message
+  addMessage('user', 'Apply ideas to my role');
+
+  const state = getTabState(activeTabId);
+  state.conversationHistory.push({ role: 'user', content: 'Apply ideas to my role' });
+
+  // Show the bot's question with role picker
+  const botQuestion = "What's your role or occupation?";
+  const wrapper = addMessage('assistant', botQuestion, { showActions: false });
+
+  const picker = document.createElement('div');
+  picker.className = 'role-picker';
+  picker.innerHTML = ROLE_OPTIONS.map(role =>
+    `<button class="role-option-btn">${role}</button>`
+  ).join('');
+
+  const customRow = document.createElement('div');
+  customRow.className = 'role-custom-row';
+  customRow.innerHTML = `<input type="text" class="role-custom-input" placeholder="Or type your role..." /><button class="role-custom-submit" title="Submit">→</button>`;
+  picker.appendChild(customRow);
+
+  wrapper.appendChild(picker);
+  scrollToBottom();
+
+  // Handle role button clicks
+  picker.querySelectorAll('.role-option-btn').forEach(btn => {
+    btn.addEventListener('click', () => selectRole(btn.textContent, wrapper));
+  });
+
+  // Handle custom input
+  const customInput = customRow.querySelector('.role-custom-input');
+  const customSubmit = customRow.querySelector('.role-custom-submit');
+
+  customSubmit.addEventListener('click', () => {
+    const role = customInput.value.trim();
+    if (role) selectRole(role, wrapper);
+  });
+
+  customInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const role = customInput.value.trim();
+      if (role) selectRole(role, wrapper);
+    }
+  });
+
+  customInput.focus();
+
+  state.conversationHistory.push({ role: 'assistant', content: botQuestion });
+}
+
+function selectRole(role, pickerWrapper) {
+  // Remove the picker from the message
+  const picker = pickerWrapper.querySelector('.role-picker');
+  if (picker) picker.remove();
+
+  pendingApplyIdeas = false;
+
+  handleSend({
+    text: role,
+    isSuggestion: false,
+    applyIdeasRole: role
   });
 }
 
